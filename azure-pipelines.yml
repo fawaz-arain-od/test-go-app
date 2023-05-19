@@ -1,0 +1,48 @@
+name: Build Go app and push to Azure
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+    AZURE_WEBAPP_NAME: item-test-app-3 # set this to your application's name
+    WORKING_DIRECTORY: '.'        # set this to the path to your path of working directory inside github repository, defaults to the repository root
+    GO_VERSION: '1.19'            # set this to your application's go version
+    
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.19
+
+    #- name: Copy static template files
+    #  run: xcopy /i templates build\templates
+
+    #- name: Copy static public files
+    #  run: xcopy /i public build\public
+
+    - name: Build
+      run: go build -o build/executable -v
+
+    - name: Test
+      run: go test
+      
+    - name: Deploy to Azure
+      uses: Azure/webapps-deploy@v2
+      with:
+        # Name of the Azure Web App
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        # Applies to Web App only: Path to package or folder. *.zip, *.war, *.jar or a folder to deploy
+        package: build/
+        #publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
+
+  
