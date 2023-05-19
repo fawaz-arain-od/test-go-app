@@ -1,48 +1,65 @@
-name: Build Go app and push to Azure
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+trigger:
+- main
 
-env:
-    AZURE_WEBAPP_NAME: item-test-app-3 # set this to your application's name
-    WORKING_DIRECTORY: '.'        # set this to the path to your path of working directory inside github repository, defaults to the repository root
-    GO_VERSION: '1.19'            # set this to your application's go version
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  GOBIN:  '$(GOPATH)/bin' # Go binaries path
+  GOROOT: '/usr/local/go1.11' # Go installation path
+  GOPATH: '$(system.defaultWorkingDirectory)/gopath' # Go workspace path
+  modulePath: '$(GOPATH)/src/github.com/$(build.repository.name)' # Path to the module's code
+
+steps:
+- script: First step
+  displayName: 'Starting build'
+
+- script: |
+    mkdir -p '$(GOBIN)'
+    mkdir -p '$(GOPATH)/pkg'
+    mkdir -p '$(modulePath)'
+    shopt -s extglob
+    shopt -s dotglob
+    mv !(gopath) '$(modulePath)'
+    echo '##vso[task.prependpath]$(GOBIN)'
+    echo '##vso[task.prependpath]$(GOROOT)/bin'
+  displayName: 'Set up the Go workspace'
+
+- script: |
+    go version
+    go get -v -t -d ./...
+    if [ -f Gopkg.toml ]; then
+        curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+        dep ensure
+    fi
+    go build -v .
+  workingDirectory: '$(modulePath)'
+  displayName: 'Get dependencies, then build'
+
+
+- script: |
+    echo Add other tasks to build, test, and deploy your project.
+    echo See https://aka.ms/yaml
+  displayName: 'Run a multi-line script'
+
+- task: AzureRmWebAppDeployment@2
+  inputs:
+    ConnectedServiceName: catalog-dev 
+    WebAppName: item-test-app-3
+    #DeployToSlotFlag: false # boolean. Deploy to slot. Default: false.
+    #ResourceGroupName: string. Required when DeployToSlotFlag = true. Resource group. 
+    ResourceGroupName: rg-sdbx-eus2-mp-item-sdbx
     
-
-jobs:
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.19
-
-    #- name: Copy static template files
-    #  run: xcopy /i templates build\templates
-
-    #- name: Copy static public files
-    #  run: xcopy /i public build\public
-
-    - name: Build
-      run: go build -o build/executable -v
-
-    - name: Test
-      run: go test
-      
-    - name: Deploy to Azure
-      uses: Azure/webapps-deploy@v2
-      with:
-        # Name of the Azure Web App
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        # Applies to Web App only: Path to package or folder. *.zip, *.war, *.jar or a folder to deploy
-        package: build/
-        #publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
-
-  
+    #SlotName: # string. Required when DeployToSlotFlag = true. Slot. 
+    #VirtualApplication: # string. Virtual Application. 
+    Package: '$(System.DefaultWorkingDirectory)/**/*.zip' # string. Required. Package or Folder. Default: $(System.DefaultWorkingDirectory)/**/*.zip.
+  #Output
+    WebAppUri: item-test-app-3.azurewebsites.net
+  # Additional Deployment Options
+    #UseWebDeploy: true # boolean. Publish using Web Deploy. Default: true.
+    #SetParametersFile: # string. Optional. Use when UseWebDeploy == true. SetParameters File. 
+    #RemoveAdditionalFilesFlag: false # boolean. Optional. Use when UseWebDeploy == true. Remove Additional Files at Destination. Default: false.
+    #ExcludeFilesFromAppDataFlag: false # boolean. Optional. Use when UseWebDeploy == true. Exclude Files from the App_Data Folder. Default: false.
+    #AdditionalArguments: # string. Optional. Use when UseWebDeploy == true. Additional Arguments. 
+    #TakeAppOfflineFlag: false # boolean. Take App Offline. Default: false.
